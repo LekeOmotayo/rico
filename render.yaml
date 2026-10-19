@@ -1,0 +1,36 @@
+services:
+  # ── Rico Multi-Model Gateway Web Service ───────────────────────────────────
+  - type: web
+    name: rico-gateway-service
+    env: docker
+    dockerfilePath: Dockerfile
+    plan: starter
+    region: oregon
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: RICO_ENV
+        value: production
+      - key: PORT
+        value: 8000
+      - key: HOST
+        value: 0.0.0.0
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: rico-redis
+          property: connectionString
+      - key: RICO_API_TOKENS
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO
+
+  # ── Managed Redis Instance for Sliding-Window Rate Limiting ────────────────
+  - type: redis
+    name: rico-redis
+    plan: starter
+    region: oregon
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: [] # Private network only

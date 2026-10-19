@@ -1,0 +1,50 @@
+services:
+  # ── Rico Multi-Model Gateway ────────────────────────────────────────────────
+  rico:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rico-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - RICO_ENV=development
+      - PORT=8000
+      - HOST=0.0.0.0
+      - LOG_LEVEL=INFO
+      - REDIS_URL=redis://redis:6379/0
+      - RICO_API_TOKENS=rico-dev-token
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ── Redis (Sliding-Window Rate Limiter & TokenOps Store) ─────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: rico-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── Prometheus (Observability & Metrics Scraping) ───────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.50.0
+    container_name: rico-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - rico
+    restart: unless-stopped
