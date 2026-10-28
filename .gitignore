@@ -26,3 +26,7 @@ wheels/
 htmlcov/
 .mypy_cache/
 .env
+
+*.log
+.server.*.log
+
