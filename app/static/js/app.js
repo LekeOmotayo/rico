@@ -1,4 +1,6 @@
 // Rico Multi-Model Gateway & TokenOps Proxy — Client Engine
+const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:8000' : '';
+
 document.addEventListener('DOMContentLoaded', () => {
   // Navigation
   const tabButtons = document.querySelectorAll('.nav-item[data-tab]');
@@ -52,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function refreshCircuits() {
     try {
-      const res = await fetch('/v1/circuits');
+      const res = await fetch(API_BASE + '/v1/circuits');
       if (res.ok) {
         const circuits = await res.json();
         updateCircuitUI(circuits);
@@ -87,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target.classList.contains('btn-trip-model')) {
       const modelId = e.target.getAttribute('data-model');
       try {
-        await fetch(`/v1/circuits/${modelId}/trip`, { method: 'POST' });
+        await fetch(API_BASE + `/v1/circuits/${modelId}/trip`, { method: 'POST' });
         refreshCircuits();
       } catch (err) {
         const badge = document.getElementById(`status-${modelId}`);
@@ -99,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (e.target.classList.contains('btn-reset-model')) {
       const modelId = e.target.getAttribute('data-model');
       try {
-        await fetch(`/v1/circuits/${modelId}/reset`, { method: 'POST' });
+        await fetch(API_BASE + `/v1/circuits/${modelId}/reset`, { method: 'POST' });
         refreshCircuits();
       } catch (err) {
         const badge = document.getElementById(`status-${modelId}`);
@@ -111,21 +113,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  btnResetAll.addEventListener('click', async () => {
-    const models = ['gpt-4o', 'gpt-4o-mini', 'llama-3-8b-local'];
-    for (const m of models) {
-      try {
-        await fetch(`/v1/circuits/${m}/reset`, { method: 'POST' });
-      } catch (e) {
-        const badge = document.getElementById(`status-${m}`);
-        if (badge) {
-          badge.textContent = 'CLOSED';
-          badge.className = 'circuit-status closed';
+  if (btnResetAll) {
+    btnResetAll.addEventListener('click', async () => {
+      const models = ['gpt-4o', 'gpt-4o-mini', 'llama-3-8b-local'];
+      for (const m of models) {
+        try {
+          await fetch(API_BASE + `/v1/circuits/${m}/reset`, { method: 'POST' });
+        } catch (e) {
+          const badge = document.getElementById(`status-${m}`);
+          if (badge) {
+            badge.textContent = 'CLOSED';
+            badge.className = 'circuit-status closed';
+          }
         }
       }
-    }
-    refreshCircuits();
-  });
+      refreshCircuits();
+    });
+  }
 
   if (btnRefreshMesh) btnRefreshMesh.addEventListener('click', refreshCircuits);
 
@@ -142,11 +146,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSendChat = document.getElementById('btn-send-chat');
 
   async function sendChatRequest() {
-    chatFallbackBadge.className = 'badge-status ready';
-    chatFallbackBadge.textContent = 'ROUTING MESH';
+    if (chatFallbackBadge) {
+      chatFallbackBadge.className = 'badge-status ready';
+      chatFallbackBadge.textContent = 'ROUTING MESH...';
+    }
+    if (btnSendChat) {
+      btnSendChat.disabled = true;
+      btnSendChat.innerHTML = '<span>Routing...</span>';
+    }
 
-    const teamId = chatTeamSelect.value;
-    const prompt = chatInput.value.trim();
+    const teamId = chatTeamSelect ? chatTeamSelect.value : 'team-ai-agents';
+    const prompt = chatInput ? chatInput.value.trim() : 'Test prompt';
 
     const payload = {
       model: 'gpt-4o',
@@ -156,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const startTime = performance.now();
     try {
-      const res = await fetch('/v1/chat/completions', {
+      const res = await fetch(API_BASE + '/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -169,39 +179,62 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
 
       if (res.ok) {
-        const choice = data.choices[0];
-        const trace = data.fallback_trace;
+        const choice = (data.choices && data.choices[0]) ? data.choices[0] : null;
+        const trace = data.fallback_trace || {};
 
-        chatResponseOutput.textContent = choice.message.content;
-        traceModelVal.textContent = data.model;
+        if (chatResponseOutput) {
+          chatResponseOutput.textContent = choice ? choice.message.content : JSON.stringify(data, null, 2);
+        }
+        if (traceModelVal) traceModelVal.textContent = data.model || 'gpt-4o';
 
         if (trace.fallback_triggered) {
-          chatFallbackBadge.className = 'badge-status warn';
-          chatFallbackBadge.textContent = 'FAILOVER ACTIVE';
-          traceFailoverVal.innerHTML = `<span style="color: var(--accent-amber);">TRUE &bull; Primary failed &rarr; degraded to ${data.model}</span>`;
+          if (chatFallbackBadge) {
+            chatFallbackBadge.className = 'badge-status warn';
+            chatFallbackBadge.textContent = 'FAILOVER ACTIVE';
+          }
+          if (traceFailoverVal) {
+            traceFailoverVal.innerHTML = `<span style="color: var(--accent-amber);">TRUE &bull; Primary failed &rarr; degraded to ${data.model}</span>`;
+          }
         } else {
-          chatFallbackBadge.className = 'badge-status success';
-          chatFallbackBadge.textContent = 'PRIMARY HEALTHY';
-          traceFailoverVal.innerHTML = `<span style="color: var(--accent-green);">FALSE &bull; Primary fulfilled request</span>`;
+          if (chatFallbackBadge) {
+            chatFallbackBadge.className = 'badge-status success';
+            chatFallbackBadge.textContent = 'PRIMARY HEALTHY';
+          }
+          if (traceFailoverVal) {
+            traceFailoverVal.innerHTML = `<span style="color: var(--accent-green);">FALSE &bull; Primary fulfilled request</span>`;
+          }
         }
 
-        traceTokensVal.textContent = `${data.usage.total_tokens} tokens (${data.usage.prompt_tokens} prompt + ${data.usage.completion_tokens} completion)`;
-        chatLatencyBadge.textContent = `${trace.total_latency_ms || latency} ms`;
-        chatTraceId.textContent = `Trace: ${res.headers.get('X-Trace-Id') || 'trace_mesh_01'}`;
+        if (traceTokensVal) {
+          traceTokensVal.textContent = data.usage
+            ? `${data.usage.total_tokens} tokens (${data.usage.prompt_tokens} prompt + ${data.usage.completion_tokens} completion)`
+            : '22 tokens';
+        }
+        if (chatLatencyBadge) chatLatencyBadge.textContent = `${trace.total_latency_ms || latency} ms`;
+        if (chatTraceId) chatTraceId.textContent = `Trace: ${res.headers.get('X-Trace-Id') || data.id || 'trace_mesh_01'}`;
       } else {
-        chatFallbackBadge.className = 'badge-status error';
-        chatFallbackBadge.textContent = `ERROR ${res.status}`;
-        chatResponseOutput.textContent = JSON.stringify(data, null, 2);
-        chatLatencyBadge.textContent = `${latency} ms`;
+        if (chatFallbackBadge) {
+          chatFallbackBadge.className = 'badge-status error';
+          chatFallbackBadge.textContent = `ERROR ${res.status}`;
+        }
+        if (chatResponseOutput) chatResponseOutput.textContent = JSON.stringify(data, null, 2);
+        if (chatLatencyBadge) chatLatencyBadge.textContent = `${latency} ms`;
       }
     } catch (err) {
       // Offline fallback simulation
       simulateOfflineChat(teamId, prompt);
+    } finally {
+      if (btnSendChat) {
+        btnSendChat.disabled = false;
+        btnSendChat.innerHTML = '<span>Dispatch Request</span><span class="shortcut">Ctrl+Enter</span>';
+      }
+      refreshCircuits();
+      refreshQuotas();
     }
-
-    refreshCircuits();
-    refreshQuotas();
   }
+
+  // Expose globally for onclick fail-safe
+  window.sendChatRequest = sendChatRequest;
 
   function simulateOfflineChat(teamId, prompt) {
     const isPrimaryOpen = document.getElementById('status-gpt-4o')?.textContent === 'OPEN';
@@ -218,31 +251,41 @@ document.addEventListener('DOMContentLoaded', () => {
       failover = true;
     }
 
-    traceModelVal.textContent = modelUsed;
+    if (traceModelVal) traceModelVal.textContent = modelUsed;
     if (failover) {
-      chatFallbackBadge.className = 'badge-status warn';
-      chatFallbackBadge.textContent = 'FAILOVER ACTIVE';
-      traceFailoverVal.innerHTML = `<span style="color: var(--accent-amber);">TRUE &bull; Primary failed &rarr; degraded to ${modelUsed}</span>`;
+      if (chatFallbackBadge) {
+        chatFallbackBadge.className = 'badge-status warn';
+        chatFallbackBadge.textContent = 'FAILOVER ACTIVE';
+      }
+      if (traceFailoverVal) {
+        traceFailoverVal.innerHTML = `<span style="color: var(--accent-amber);">TRUE &bull; Primary failed &rarr; degraded to ${modelUsed}</span>`;
+      }
     } else {
-      chatFallbackBadge.className = 'badge-status success';
-      chatFallbackBadge.textContent = 'PRIMARY HEALTHY';
-      traceFailoverVal.innerHTML = `<span style="color: var(--accent-green);">FALSE &bull; Primary fulfilled request</span>`;
+      if (chatFallbackBadge) {
+        chatFallbackBadge.className = 'badge-status success';
+        chatFallbackBadge.textContent = 'PRIMARY HEALTHY';
+      }
+      if (traceFailoverVal) {
+        traceFailoverVal.innerHTML = `<span style="color: var(--accent-green);">FALSE &bull; Primary fulfilled request</span>`;
+      }
     }
 
-    chatResponseOutput.textContent = `[${modelUsed}] Successfully processed request for ${teamId}!\nResponse: Safe and resilient answer to '${prompt.substring(0, 45)}...'`;
-    traceTokensVal.textContent = `42 tokens (22 prompt + 20 completion)`;
-    chatLatencyBadge.textContent = `28.50 ms`;
-    chatTraceId.textContent = `Trace: 00-mock-trace-offline-01`;
+    if (chatResponseOutput) {
+      chatResponseOutput.textContent = `[${modelUsed}] Successfully processed request for ${teamId}!\nResponse: Safe and resilient answer to '${prompt.substring(0, 45)}...'`;
+    }
+    if (traceTokensVal) traceTokensVal.textContent = `42 tokens (22 prompt + 20 completion)`;
+    if (chatLatencyBadge) chatLatencyBadge.textContent = `28.50 ms`;
+    if (chatTraceId) chatTraceId.textContent = `Trace: 00-mock-trace-offline-01`;
   }
 
-  btnSendChat.addEventListener('click', sendChatRequest);
+  if (btnSendChat) btnSendChat.addEventListener('click', sendChatRequest);
 
   // ── Tab 3: Team TokenOps Quotas ──
   const btnRefreshQuotas = document.getElementById('btn-refresh-quotas');
 
   async function refreshQuotas() {
     try {
-      const res = await fetch('/v1/quotas/teams');
+      const res = await fetch(API_BASE + '/v1/quotas/teams');
       if (res.ok) {
         const teams = await res.json();
         updateQuotasUI(teams);
@@ -277,16 +320,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnRefreshMetrics = document.getElementById('btn-refresh-metrics');
 
   async function refreshMetrics() {
-    metricsOutput.textContent = 'Fetching /metrics stream...';
+    if (metricsOutput) metricsOutput.textContent = 'Fetching /metrics stream...';
     try {
-      const res = await fetch('/metrics');
+      const res = await fetch(API_BASE + '/metrics');
       if (res.ok) {
-        metricsOutput.textContent = await res.text();
+        if (metricsOutput) metricsOutput.textContent = await res.text();
       } else {
-        metricsOutput.textContent = getSamplePrometheus();
+        if (metricsOutput) metricsOutput.textContent = getSamplePrometheus();
       }
     } catch (e) {
-      metricsOutput.textContent = getSamplePrometheus();
+      if (metricsOutput) metricsOutput.textContent = getSamplePrometheus();
     }
   }
 
@@ -323,15 +366,15 @@ rico_request_duration_seconds_count{team="team-ai-agents",model="gpt-4o"} 245`;
   window.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       const activeTab = document.querySelector('.tab-pane.active');
-      if (activeTab.id === 'tab-console') sendChatRequest();
+      if (activeTab && activeTab.id === 'tab-console') sendChatRequest();
     }
   });
 
   // Initial load
-  fetch('/health').then(r => r.json()).then(d => {
-    gatewayStatus.textContent = `Gateway: Online (${d.service} v${d.version})`;
+  fetch(API_BASE + '/health').then(r => r.json()).then(d => {
+    if (gatewayStatus) gatewayStatus.textContent = `Gateway: Online (${d.service} v${d.version})`;
   }).catch(() => {
-    gatewayStatus.textContent = 'Gateway: Offline / Preview';
+    if (gatewayStatus) gatewayStatus.textContent = 'Gateway: Offline / Preview';
   });
 
   refreshCircuits();

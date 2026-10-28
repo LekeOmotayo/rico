@@ -64,6 +64,10 @@ app.add_middleware(
 STATIC_DIR = Path(__file__).parent / "static"
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    if (STATIC_DIR / "css").exists():
+        app.mount("/css", StaticFiles(directory=str(STATIC_DIR / "css")), name="css")
+    if (STATIC_DIR / "js").exists():
+        app.mount("/js", StaticFiles(directory=str(STATIC_DIR / "js")), name="js")
 
 
 @app.get("/", include_in_schema=False)
