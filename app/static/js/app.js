@@ -1,5 +1,5 @@
 // Rico Multi-Model Gateway & TokenOps Proxy — Client Engine
-const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:8000' : '';
+const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:8089' : '';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Navigation

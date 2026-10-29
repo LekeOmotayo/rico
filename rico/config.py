@@ -15,7 +15,7 @@ class GatewayConfig(BaseModel):
     version: str = "1.0.0"
     env: str = Field(default_factory=lambda: os.getenv("RICO_ENV", "development"))
     host: str = Field(default_factory=lambda: os.getenv("HOST", "0.0.0.0"))
-    port: int = Field(default_factory=lambda: int(os.getenv("PORT", "8000")))
+    port: int = Field(default_factory=lambda: int(os.getenv("PORT", "8089")))
     log_level: str = Field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
 
     # Redis connection for sliding window rate limiter

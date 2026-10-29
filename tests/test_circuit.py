@@ -49,7 +49,7 @@ def test_circuit_breaker_transitions():
     assert breaker.can_execute() is True
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_router_normal_execution(router: ModelMeshRouter):
     req = ChatCompletionRequest(
         messages=[ChatMessage(role="user", content="Hello world")],
@@ -63,7 +63,7 @@ async def test_router_normal_execution(router: ModelMeshRouter):
     assert "gpt-4o" in resp.choices[0].message.content.lower()
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_router_automatic_failover(router: ModelMeshRouter):
     req = ChatCompletionRequest(
         messages=[ChatMessage(role="user", content="Test fallback")],
@@ -83,7 +83,7 @@ async def test_router_automatic_failover(router: ModelMeshRouter):
     assert len(resp.fallback_trace.failover_reasons) >= 1
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_router_degrade_to_local_fallback(router: ModelMeshRouter):
     req = ChatCompletionRequest(
         messages=[ChatMessage(role="user", content="Test local fallback")],
@@ -101,7 +101,7 @@ async def test_router_degrade_to_local_fallback(router: ModelMeshRouter):
     assert resp.fallback_trace.fallback_triggered is True
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_all_models_exhausted(router: ModelMeshRouter):
     req = ChatCompletionRequest(
         messages=[ChatMessage(role="user", content="Test exhaustion")],
